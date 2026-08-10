@@ -4,9 +4,9 @@ FROM python:3.10-slim
 # 設定工作目錄
 WORKDIR /app
 
-# 安裝系統依賴：ffmpeg 以及 curl (用來下載 deno)
+# 安裝系統依賴：ffmpeg、curl 以及安裝 Deno 必備的 unzip
 RUN apt-get update && \
-    apt-get install -y ffmpeg curl && \
+    apt-get install -y ffmpeg curl unzip && \
     apt-get clean
 
 # 安裝 Deno (yt-dlp 破解 YouTube 加密必備)
