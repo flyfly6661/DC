@@ -11,6 +11,7 @@ import urllib.parse
 import urllib.request
 from keep_alive import keep_alive
 
+
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
@@ -640,4 +641,6 @@ async def slash_playlist_play(interaction: discord.Interaction, name: str):
 
 if __name__ == "__main__":
     keep_alive()
-    bot.run("你的Token")
+    # 從系統環境變數中讀取 DISCORD_TOKEN，如果找不到就會報錯提醒
+    TOKEN = os.getenv("DISCORD_TOKEN")
+    bot.run(TOKEN)
