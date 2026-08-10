@@ -1,18 +1,26 @@
+# 使用官方 Python 3.10 輕量版映像檔
 FROM python:3.10-slim
 
-# 更新系統並安裝 FFmpeg
-RUN apt-get update && \
-    apt-get install -y ffmpeg && \
-    apt-get clean
-
+# 設定工作目錄
 WORKDIR /app
 
-# 複製並安裝 Python 套件
+# 安裝系統依賴：ffmpeg 以及 curl (用來下載 deno)
+RUN apt-get update && \
+    apt-get install -y ffmpeg curl && \
+    apt-get clean
+
+# 安裝 Deno (yt-dlp 破解 YouTube 加密必備)
+RUN curl -fsSL https://deno.land/install.sh | sh
+
+# 將 Deno 加入系統環境變數 PATH (預設安裝在 root 的 .deno 內)
+ENV PATH="/root/.deno/bin:$PATH"
+
+# 複製 requirements.txt 並安裝 Python 套件
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 複製其餘所有程式碼
+# 複製專案其餘所有檔案到容器中
 COPY . .
 
-# 啟動機器人
+# 啟動機器人與網頁伺服器
 CMD ["python", "bot.py"]
