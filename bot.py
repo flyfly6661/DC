@@ -140,11 +140,14 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
         
         player = await YTDLSource.create_source(url, loop=bot.loop, start_time=start_time, volume=vol, filter_type=flt)
         
+        # 【修正】在這裡加上判斷，如果是章節跳轉引起的停止，絕對不呼叫 play_next
         def after_playing(error):
-            if not is_chapter_seek:
-                if guild_id not in music_history: music_history[guild_id] = []
-                music_history[guild_id].append(last_played_url.get(guild_id))
-                play_next(ctx)
+            if is_chapter_seek:
+                return  # 直接結束，不觸發切歌或退房
+                
+            if guild_id not in music_history: music_history[guild_id] = []
+            music_history[guild_id].append(last_played_url.get(guild_id))
+            play_next(ctx)
 
         vc = ctx.guild.voice_client if isinstance(ctx, discord.Interaction) else ctx.guild.voice_client
         if vc:
@@ -171,7 +174,6 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
             else: await ctx.channel.send(embed=embed, view=view)
     except Exception as e:
         print(f"播放錯誤: {e}")
-
 # --- 互動式進階面板與選單元件 ---
 class ChapterSelect(discord.ui.Select):
     def __init__(self, chapters, url):
