@@ -24,9 +24,8 @@ ytdl_format_options = {
     'quiet': True,
     'default_search': 'auto',
     'cookiefile': 'cookies.txt',
-    # 修正這裡的 EJS 遠端組件寫法
+    # 務必確認這裡是一個完整的字串，而不是被拆開的字母
     'remote_components': 'ejs:github',
-    # 雲端 Linux (Render / Docker) 中的 Deno 絕對路徑
     'js_runtimes': {
         'deno': {
             'path': '/root/.deno/bin/deno'
