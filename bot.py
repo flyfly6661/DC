@@ -24,6 +24,10 @@ ytdl_format_options = {
     'quiet': True,
     'default_search': 'auto',
     'cookiefile': 'cookies.txt',
+    # 啟用遠端 EJS 挑戰解密腳本
+    'remote_components': {
+        'ejs': 'github'
+    },
     # 雲端 Linux (Render / Docker) 中的 Deno 絕對路徑
     'js_runtimes': {
         'deno': {
