@@ -68,7 +68,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
         self.thumbnail = data.get('thumbnail')
         self.duration = data.get('duration', 0)
 
-    @classmethod
+   @classmethod
     async def create_source(cls, url, *, loop=None, start_time=0, volume=0.5, filter_type=None):
         loop = loop or asyncio.get_event_loop()
         data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=False))
@@ -76,13 +76,10 @@ class YTDLSource(discord.PCMVolumeTransformer):
         
         filename = data['url']
         
-        # 組合 FFmpeg 參數
-        options_list = []
+        # 【關鍵修復】將 -ss 放在 before_options 內，讓 FFmpeg 在輸入端直接快轉，避免卡住
+        before_options = f"-ss {start_time}" if start_time > 0 else ""
         
-        # 【關鍵修復】如果大於 0 秒，一定要加上 -ss 參數讓 FFmpeg 從指定秒數開始切入
-        if start_time > 0:
-            options_list.append(f'-ss {start_time}')
-            
+        options_list = ['-vn']
         if filter_type == 'bassboost':
             options_list.append('-af bass=g=15')
         elif filter_type == 'nightcore':
@@ -90,13 +87,11 @@ class YTDLSource(discord.PCMVolumeTransformer):
         elif filter_type == 'eq_boost':
             options_list.append('-af equalizer=f=1000:width_type=o:width=2:g=5')
             
-        options_str = ' '.join(options_list) if options_list else '-vn'
-        if '-vn' not in options_str:
-            options_str += ' -vn'
+        options_str = ' '.join(options_list)
 
-        audio = discord.FFmpegPCMAudio(filename, options=options_str)
+        # 帶入 before_options 進行快速跳轉
+        audio = discord.FFmpegPCMAudio(filename, before_options=before_options, options=options_str)
         return cls(audio, data=data, volume=volume, filter_type=filter_type)
-
 def play_next(ctx):
     guild_id = ctx.guild.id
     mode = loop_status.get(guild_id, 0)
