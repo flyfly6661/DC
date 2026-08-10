@@ -1,5 +1,3 @@
 discord.py
-PyNaCl
-davey
 yt-dlp
-Flask
+flask
