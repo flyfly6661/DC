@@ -25,9 +25,10 @@ ytdl_format_options = {
     'quiet': True,
     'default_search': 'auto',
     'cookiefile': 'cookies.txt',
+    # 讓雲端 Linux 能夠自動抓取 Deno 的路徑
     'js_runtimes': {
         'deno': {
-            'path': r'C:\Users\flyis\.deno\bin\deno.exe'
+            'path': '/opt/render/.deno/bin/deno' # 或者是 os.path.expanduser('~/.deno/bin/deno')
         }
     },
 }
