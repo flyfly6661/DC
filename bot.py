@@ -640,4 +640,4 @@ async def slash_playlist_play(interaction: discord.Interaction, name: str):
 
 if __name__ == "__main__":
     keep_alive()
-    bot.run("MTUzNjI4OTk4NjYyODgxMjgwMA.Gsc5uI.hry9wmaOydrLvQ8aqbxCaoozCnAYU_YXRUU0MQ")
+    bot.run("你的Token")
