@@ -24,7 +24,6 @@ ytdl_format_options = {
     'quiet': True,
     'default_search': 'auto',
     'cookiefile': 'cookies.txt',
-    # 務必確認這裡是一個完整的字串，而不是被拆開的字母
     'remote_components': 'ejs:github',
     'js_runtimes': {
         'deno': {
