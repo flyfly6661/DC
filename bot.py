@@ -25,10 +25,9 @@ ytdl_format_options = {
     'quiet': True,
     'default_search': 'auto',
     'cookiefile': 'cookies.txt',
-    # 讓雲端 Linux 能夠自動抓取 Deno 的路徑
     'js_runtimes': {
         'deno': {
-            'path': '/opt/render/.deno/bin/deno' # 或者是 os.path.expanduser('~/.deno/bin/deno')
+            'path': '/root/.deno/bin/deno'  # 在 Docker 容器中 Deno 的絕對路徑
         }
     },
 }
