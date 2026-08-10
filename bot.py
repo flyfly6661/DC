@@ -60,14 +60,6 @@ def save_playlists(data):
 
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5, filter_type=None):
-        options = '-vn'
-        if filter_type == 'bassboost':
-            options = '-vn -af bass=g=15'
-        elif filter_type == 'nightcore':
-            options = '-vn -af asetrate=44105*1.25,aresample=44105'
-        elif filter_type == 'eq_boost':
-            options = '-vn -af equalizer=f=1000:width_type=o:width=2:g=5'
-            
         super().__init__(source, volume)
         self.data = data
         self.title = data.get('title')
@@ -84,7 +76,10 @@ class YTDLSource(discord.PCMVolumeTransformer):
         
         filename = data['url']
         
+        # 組合 FFmpeg 參數
         options_list = []
+        
+        # 【關鍵修復】如果大於 0 秒，一定要加上 -ss 參數讓 FFmpeg 從指定秒數開始切入
         if start_time > 0:
             options_list.append(f'-ss {start_time}')
             
