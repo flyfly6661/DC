@@ -11,7 +11,6 @@ import urllib.parse
 import urllib.request
 from keep_alive import keep_alive
 
-
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
@@ -25,9 +24,10 @@ ytdl_format_options = {
     'quiet': True,
     'default_search': 'auto',
     'cookiefile': 'cookies.txt',
+    # 雲端 Linux (Render / Docker) 中的 Deno 絕對路徑
     'js_runtimes': {
         'deno': {
-            'path': '/root/.deno/bin/deno'  # 在 Docker 容器中 Deno 的絕對路徑
+            'path': '/root/.deno/bin/deno'
         }
     },
 }
@@ -378,7 +378,6 @@ async def slash_rec(interaction: discord.Interaction):
     
     await interaction.followup.send(rec_msg)
 
-# 新增功能 3：音樂下載與轉檔連結取得 (/download)
 @bot.tree.command(name="download", description="取得當前播放歌曲的直接音訊下載網址")
 async def slash_download(interaction: discord.Interaction):
     vc = interaction.guild.voice_client
@@ -401,12 +400,10 @@ async def slash_download(interaction: discord.Interaction):
     except Exception:
         await interaction.followup.send("無法產生下載連結。", ephemeral=True)
 
-# 新增功能 4：熱門排行榜與精選清單 (/trending)
 @bot.tree.command(name="trending", description="查看當前熱門音樂精選排行榜")
 async def slash_trending(interaction: discord.Interaction):
     await interaction.response.defer()
     try:
-        # 搜尋 YouTube 熱門音樂趨勢關鍵字
         info = ytdl.extract_info("ytsearch5:热门音乐 流行歌曲", download=False)
         entries = info.get('entries', [])
         
@@ -613,19 +610,21 @@ async def slash_playlist_import(interaction: discord.Interaction, name: str, cod
 @bot.tree.command(name="playlist_play", description="播放指定自訂歌單")
 @app_commands.describe(name="歌單名稱")
 async def slash_playlist_play(interaction: discord.Interaction, name: str):
+    # 第一時間執行 defer 避免 3 秒超時
+    await interaction.response.defer(ephemeral=True)
+
     playlists = load_playlists()
     user_id = str(interaction.user.id)
     
     if user_id not in playlists or name not in playlists[user_id] or not playlists[user_id][name]:
-        await interaction.response.send_message(f"找不到歌單 **{name}** 或歌單內沒有歌曲！", ephemeral=True)
+        await interaction.followup.send(f"找不到歌單 **{name}** 或歌單內沒有歌曲！", ephemeral=True)
         return
         
-    await interaction.response.defer()
     if not interaction.guild.voice_client:
         if interaction.user.voice:
             await interaction.user.voice.channel.connect()
         else:
-            await interaction.followup.send("請先進入語音頻道！")
+            await interaction.followup.send("請先進入語音頻道！", ephemeral=True)
             return
             
     guild_id = interaction.guild.id
@@ -641,6 +640,5 @@ async def slash_playlist_play(interaction: discord.Interaction, name: str):
 
 if __name__ == "__main__":
     keep_alive()
-    # 從系統環境變數中讀取 DISCORD_TOKEN，如果找不到就會報錯提醒
     TOKEN = os.getenv("DISCORD_TOKEN")
     bot.run(TOKEN)
