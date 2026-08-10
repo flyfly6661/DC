@@ -4,5 +4,7 @@ services:
     runtime: python
     region: singapore
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      curl -fsSL https://deno.land/install.sh | sh
+      pip install -r requirements.txt
     startCommand: python3 bot.py
