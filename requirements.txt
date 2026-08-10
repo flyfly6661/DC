@@ -1,5 +1,5 @@
 discord.py
-yt-dlp --upgrade
+yt-dlp
 flask
 PyNaCl
 davey
