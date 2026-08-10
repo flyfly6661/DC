@@ -1,5 +1,4 @@
-discord.py
-yt-dlp
+yt-dlp[default]
 flask
 PyNaCl
 davey
