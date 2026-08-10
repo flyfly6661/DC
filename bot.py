@@ -140,21 +140,23 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
         
         player = await YTDLSource.create_source(url, loop=bot.loop, start_time=start_time, volume=vol, filter_type=flt)
         
-        # 【修正】在這裡加上判斷，如果是章節跳轉引起的停止，絕對不呼叫 play_next
         def after_playing(error):
+            # 如果是 24/7 模式或是章節跳轉，絕對不退房、不播下一首
             if is_chapter_seek:
-                return  # 直接結束，不觸發切歌或退房
-                
+                return
             if guild_id not in music_history: music_history[guild_id] = []
             music_history[guild_id].append(last_played_url.get(guild_id))
             play_next(ctx)
 
         vc = ctx.guild.voice_client if isinstance(ctx, discord.Interaction) else ctx.guild.voice_client
         if vc:
-            if vc.is_playing() or vc.is_paused(): vc.stop()
+            if vc.is_playing() or vc.is_paused(): 
+                # 為了避免舊音樂的 after_playing 觸發退房，先暫時把舊 source 的 after 拔掉或用 flag 擋住
+                vc.source = None 
             vc.play(player, after=after_playing)
             start_times[guild_id] = time.time()
         
+        # 如果是章節跳轉，我們不重複傳送「正在播放」的新 Embed 面板洗版面，只在上面提示
         if not is_chapter_seek:
             view = MusicControlView(chapters=player.chapters, url=url)
             
@@ -181,9 +183,9 @@ class ChapterSelect(discord.ui.Select):
         super().__init__(placeholder="🎵 即時切換章節...", options=options, row=0)
     async def callback(self, interaction: discord.Interaction):
         data = self.values[0].split("|")
-        await interaction.response.send_message("⏩ 正在跳轉...", ephemeral=True)
+        await interaction.response.send_message("⏩ 正在跳轉章節...", ephemeral=True)
+        # 呼叫 play_song 時明確帶入 is_chapter_seek=True
         await play_song(interaction, data[0], start_time=float(data[1]), is_chapter_seek=True)
-
 class FilterSelect(discord.ui.Select):
     def __init__(self):
         options = [
