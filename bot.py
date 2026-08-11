@@ -165,11 +165,22 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
 # --- 互動式進階面板與選單元件 ---
 class ChapterSelect(discord.ui.Select):
     def __init__(self, chapters, url):
-        # 移除網址原本可能帶有的舊 t 參數，避免重複
         clean_url = url.split("&t=")[0].split("?t=")[0]
         options = [discord.SelectOption(label=c.get('title', f'章節 {i+1}')[:100], value=f"{clean_url}&t={int(c.get('start_time', 0))}") for i, c in enumerate(chapters[:25])]
         super().__init__(placeholder="🎵 即時切換章節...", options=options, row=0)
         
+    async def callback(self, interaction: discord.Interaction):
+        target_url = self.values[0]
+        await interaction.response.send_message("⏩ 正在背景切換章節...", ephemeral=True)
+        
+        # 使用背景任務獨立執行播放，避免 Interaction 超時或執行緒被網路請求卡死
+        async def background_seek():
+            try:
+                await play_song(interaction, target_url, start_time=0, is_chapter_seek=False)
+            except Exception as e:
+                print(f"章節切換失敗: {e}")
+                
+        asyncio.create_task(background_seek())
     async def callback(self, interaction: discord.Interaction):
         target_url = self.values[0]
         await interaction.response.send_message("⏩ 正在切換至該章節...", ephemeral=True)
