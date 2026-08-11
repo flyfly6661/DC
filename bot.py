@@ -89,33 +89,11 @@ class YTDLSource(discord.PCMVolumeTransformer):
         # 這裡不需要複雜的 before_options，直接用標準參數播放 yt-dlp 解析好的時間點
         audio = discord.FFmpegPCMAudio(filename, options=options_str)
         return cls(audio, data=data, volume=volume, filter_type=filter_type)
-def play_next(ctx):
-    guild_id = ctx.guild.id
-    mode = loop_status.get(guild_id, 0)
-    
-    if guild_id in vote_skips:
-        vote_skips[guild_id].clear()
-    
-    if mode == 1 and guild_id in last_played_url:
-        asyncio.run_coroutine_threadsafe(play_song(ctx, last_played_url[guild_id]), bot.loop)
-        return
-        
-    if guild_id in music_queues and len(music_queues[guild_id]) > 0:
-        next_url = music_queues[guild_id].pop(0)
-        if mode == 2 and guild_id in last_played_url:
-            music_queues[guild_id].append(last_played_url[guild_id])
-        asyncio.run_coroutine_threadsafe(play_song(ctx, next_url), bot.loop)
-    elif mode == 2 and guild_id in last_played_url:
-        asyncio.run_coroutine_threadsafe(play_song(ctx, last_played_url[guild_id]), bot.loop)
-    else:
-        if not is_247_mode.get(guild_id, False):
-            vc = ctx.guild.voice_client if not isinstance(ctx, discord.Interaction) else ctx.guild.voice_client
-            if vc and vc.is_connected():
-                asyncio.run_coroutine_threadsafe(vc.disconnect(), bot.loop)
-
 async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
     try:
         guild_id = ctx.guild.id
+        print(f"[DEBUG] play_song 被呼叫，guild_id: {guild_id}, url: {url}, start_time: {start_time}")
+        
         if not is_chapter_seek: 
             last_played_url[guild_id] = url
             if guild_id in vote_skips:
@@ -124,10 +102,13 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
         vol = current_volumes.get(guild_id, 0.5)
         flt = current_filters.get(guild_id, None)
         
+        print(f"[DEBUG] 正在提取影音資訊 (extract_info)...")
         player = await YTDLSource.create_source(url, loop=bot.loop, start_time=start_time, volume=vol, filter_type=flt)
+        print(f"[DEBUG] 影音資訊提取成功，標題: {player.title}")
         
         def after_playing(error):
-            # 如果是 24/7 模式或是章節跳轉，絕對不退房、不播下一首
+            if error:
+                print(f"[ERROR] 播放過程發生錯誤: {error}")
             if is_chapter_seek:
                 return
             if guild_id not in music_history: music_history[guild_id] = []
@@ -137,12 +118,15 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
         vc = ctx.guild.voice_client if isinstance(ctx, discord.Interaction) else ctx.guild.voice_client
         if vc:
             if vc.is_playing() or vc.is_paused(): 
-                # 為了避免舊音樂的 after_playing 觸發退房，先暫時把舊 source 的 after 拔掉或用 flag 擋住
-                vc.source = None 
+                print(f"[DEBUG] 停止目前正在播放的音訊...")
+                vc.stop()
+            print(f"[DEBUG] 開始播放新音訊源...")
             vc.play(player, after=after_playing)
             start_times[guild_id] = time.time()
+            print(f"[DEBUG] 新音訊源播放成功！")
+        else:
+            print(f"[WARNING] 找不到語音客戶端 (voice_client)")
         
-        # 如果是章節跳轉，我們不重複傳送「正在播放」的新 Embed 面板洗版面，只在上面提示
         if not is_chapter_seek:
             view = MusicControlView(chapters=player.chapters, url=url)
             
@@ -161,7 +145,9 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
             if hasattr(ctx, 'followup'): await ctx.followup.send(embed=embed, view=view)
             else: await ctx.channel.send(embed=embed, view=view)
     except Exception as e:
-        print(f"播放錯誤: {e}")
+        print(f"[ERROR] play_song 發生嚴重例外錯誤: {e}")
+        import traceback
+        traceback.print_exc()
 # --- 互動式進階面板與選單元件 ---
 class ChapterSelect(discord.ui.Select):
     def __init__(self, chapters, url):
@@ -171,21 +157,20 @@ class ChapterSelect(discord.ui.Select):
         
     async def callback(self, interaction: discord.Interaction):
         target_url = self.values[0]
+        print(f"[DEBUG] 使用者點擊切換章節，目標網址: {target_url}")
         await interaction.response.send_message("⏩ 正在背景切換章節...", ephemeral=True)
         
-        # 使用背景任務獨立執行播放，避免 Interaction 超時或執行緒被網路請求卡死
         async def background_seek():
             try:
+                print(f"[DEBUG] 開始執行背景播放切換...")
                 await play_song(interaction, target_url, start_time=0, is_chapter_seek=False)
+                print(f"[DEBUG] 背景播放切換執行完畢。")
             except Exception as e:
-                print(f"章節切換失敗: {e}")
+                print(f"[ERROR] 章節切換發生例外錯誤: {e}")
+                import traceback
+                traceback.print_exc()  # 印出完整的錯誤堆疊追蹤
                 
         asyncio.create_task(background_seek())
-    async def callback(self, interaction: discord.Interaction):
-        target_url = self.values[0]
-        await interaction.response.send_message("⏩ 正在切換至該章節...", ephemeral=True)
-        # 直接以新網址帶時間戳記的方式順暢播放，不使用 -ss
-        await play_song(interaction, target_url, start_time=0, is_chapter_seek=False)
 class FilterSelect(discord.ui.Select):
     def __init__(self):
         options = [
