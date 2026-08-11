@@ -218,13 +218,21 @@ class VolumeSelect(discord.ui.Select):
         ]
         super().__init__(placeholder="🔊 調整播放音量...", options=options, row=2)
     async def callback(self, interaction: discord.Interaction):
-        guild_id = interaction.guild.id
-        vol = float(self.values[0])
-        current_volumes[guild_id] = vol
-        vc = interaction.guild.voice_client
-        if vc and vc.source:
-            vc.source.volume = vol
-        await interaction.response.send_message(f"🔊 音量已即時調整為: **{int(vol * 100)}%**", ephemeral=True)
+        data = self.values[0].split("|")
+        target_url = data[0]
+        start_sec = float(data[1])
+        
+        print(f"DEBUG: 準備跳轉到秒數 -> {start_sec}") # 檢查這裡印出來的是不是正確的秒數（例如 120.5），而不是 0
+
+        await interaction.response.send_message(f"⏩ 正在背景切換至章節秒數: {int(start_sec)}秒...", ephemeral=True)
+
+        async def perform_seek():
+            try:
+                await play_song(interaction, target_url, start_time=start_sec, is_chapter_seek=True)
+            except Exception as e:
+                print(f"章節背景切換錯誤: {e}")
+
+        asyncio.create_task(perform_seek())
 
 class MusicControlView(discord.ui.View):
     def __init__(self, chapters=None, url=None):
