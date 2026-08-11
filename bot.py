@@ -76,9 +76,6 @@ class YTDLSource(discord.PCMVolumeTransformer):
         
         filename = data['url']
         
-        # 將 -ss 放在 before_options 內，讓 FFmpeg 在輸入端直接快轉，避免卡住
-        before_options = f"-ss {start_time}" if start_time > 0 else ""
-        
         options_list = ['-vn']
         if filter_type == 'bassboost':
             options_list.append('-af bass=g=15')
@@ -89,7 +86,8 @@ class YTDLSource(discord.PCMVolumeTransformer):
             
         options_str = ' '.join(options_list)
 
-        audio = discord.FFmpegPCMAudio(filename, before_options=before_options, options=options_str)
+        # 這裡不需要複雜的 before_options，直接用標準參數播放 yt-dlp 解析好的時間點
+        audio = discord.FFmpegPCMAudio(filename, options=options_str)
         return cls(audio, data=data, volume=volume, filter_type=filter_type)
 def play_next(ctx):
     guild_id = ctx.guild.id
@@ -167,13 +165,16 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
 # --- 互動式進階面板與選單元件 ---
 class ChapterSelect(discord.ui.Select):
     def __init__(self, chapters, url):
-        options = [discord.SelectOption(label=c.get('title', f'章節 {i+1}')[:100], value=f"{url}|{c.get('start_time', 0)}") for i, c in enumerate(chapters[:25])]
+        # 移除網址原本可能帶有的舊 t 參數，避免重複
+        clean_url = url.split("&t=")[0].split("?t=")[0]
+        options = [discord.SelectOption(label=c.get('title', f'章節 {i+1}')[:100], value=f"{clean_url}&t={int(c.get('start_time', 0))}") for i, c in enumerate(chapters[:25])]
         super().__init__(placeholder="🎵 即時切換章節...", options=options, row=0)
+        
     async def callback(self, interaction: discord.Interaction):
-        data = self.values[0].split("|")
-        await interaction.response.send_message("⏩ 正在跳轉章節...", ephemeral=True)
-        # 呼叫 play_song 時明確帶入 is_chapter_seek=True
-        await play_song(interaction, data[0], start_time=float(data[1]), is_chapter_seek=True)
+        target_url = self.values[0]
+        await interaction.response.send_message("⏩ 正在切換至該章節...", ephemeral=True)
+        # 直接以新網址帶時間戳記的方式順暢播放，不使用 -ss
+        await play_song(interaction, target_url, start_time=0, is_chapter_seek=False)
 class FilterSelect(discord.ui.Select):
     def __init__(self):
         options = [
