@@ -151,26 +151,19 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
 # --- 互動式進階面板與選單元件 ---
 class ChapterSelect(discord.ui.Select):
     def __init__(self, chapters, url):
-        clean_url = url.split("&t=")[0].split("?t=")[0]
-        options = [discord.SelectOption(label=c.get('title', f'章節 {i+1}')[:100], value=f"{clean_url}&t={int(c.get('start_time', 0))}") for i, c in enumerate(chapters[:25])]
+        # 這裡直接把原本的 url 和對應的秒數傳過去
+        options = [discord.SelectOption(label=c.get('title', f'章節 {i+1}')[:100], value=f"{url}|{c.get('start_time', 0)}") for i, c in enumerate(chapters[:25])]
         super().__init__(placeholder="🎵 即時切換章節...", options=options, row=0)
         
     async def callback(self, interaction: discord.Interaction):
-        target_url = self.values[0]
-        print(f"[DEBUG] 使用者點擊切換章節，目標網址: {target_url}")
-        await interaction.response.send_message("⏩ 正在背景切換章節...", ephemeral=True)
+        data = self.values[0].split("|")
+        target_url = data[0]
+        start_sec = float(data[1])
         
-        async def background_seek():
-            try:
-                print(f"[DEBUG] 開始執行背景播放切換...")
-                await play_song(interaction, target_url, start_time=0, is_chapter_seek=False)
-                print(f"[DEBUG] 背景播放切換執行完畢。")
-            except Exception as e:
-                print(f"[ERROR] 章節切換發生例外錯誤: {e}")
-                import traceback
-                traceback.print_exc()  # 印出完整的錯誤堆疊追蹤
-                
-        asyncio.create_task(background_seek())
+        await interaction.response.send_message(f"⏩ 正在跳轉至章節秒數: {int(start_sec)}秒...", ephemeral=True)
+        
+        # 呼叫 play_song，帶入 start_time，並設定 is_chapter_seek=True 讓它不重複跳出新面板
+        await play_song(interaction, target_url, start_time=start_sec, is_chapter_seek=True)
 class FilterSelect(discord.ui.Select):
     def __init__(self):
         options = [
