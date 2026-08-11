@@ -68,7 +68,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
         self.thumbnail = data.get('thumbnail')
         self.duration = data.get('duration', 0)
 
-@classmethod
+    @classmethod
     async def create_source(cls, url, *, loop=None, start_time=0, volume=0.5, filter_type=None):
         loop = loop or asyncio.get_event_loop()
         data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=False))
