@@ -124,7 +124,7 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
             if guild_id in vote_skips:
                 vote_skips[guild_id].clear()
 
-        vol = current_volumes.get(guild_id, 0.1)
+        vol = current_volumes.get(guild_id, 0.05)
         flt = current_filters.get(guild_id, None)
 
         # 建立音訊來源 (帶入 start_time 秒數)
@@ -210,10 +210,10 @@ class FilterSelect(discord.ui.Select):
 class VolumeSelect(discord.ui.Select):
     def __init__(self):
         options = [
-            discord.SelectOption(label="音量: 5%", value="0.05", emoji="🔈"),
-            discord.SelectOption(label="音量: 10% (預設)", value="0.1", emoji="🔉"),
-            discord.SelectOption(label="音量: 20%", value="0.2", emoji="🔊"),
-            discord.SelectOption(label="音量: 50% (最大)", value="0.5", emoji="📢")
+            discord.SelectOption(label="音量: 20%", value="0.02", emoji="🔈"),
+            discord.SelectOption(label="音量: 50% (預設)", value="0.05", emoji="🔉"),
+            discord.SelectOption(label="音量: 80%", value="0.08", emoji="🔊"),
+            discord.SelectOption(label="音量: 100% (最大)", value="0.1", emoji="📢")
         ]
         super().__init__(placeholder="🔊 調整播放音量...", options=options, row=2)
     async def callback(self, interaction: discord.Interaction):
