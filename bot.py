@@ -20,9 +20,21 @@ MY_GUILD_ID = discord.Object(id=1431588910554812540)
 
 ytdl_format_options = {
     'format': 'bestaudio/best',
+    'extractaudio': True,
+    'audioformat': 'mp3',
+    'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
+    'restrictfilenames': True,
+    'noplaylist': True,
+    'nocheckcertificate': True,
+    'ignoreerrors': False,
+    'logtostderr': False,
+    'quiet': False,
+    'no_warnings': False,
+    'default_search': 'auto',
+    'source_address': '0.0.0.0',
+    # 【關鍵設定】強制要求使用 OAuth2 登入
     'username': 'oauth2',
     'password': '',
-    # 移除原本的 'cookiefile'
 }
 ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
 
