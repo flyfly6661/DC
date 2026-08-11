@@ -18,32 +18,19 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 # 你的伺服器 ID
 MY_GUILD_ID = discord.Object(id=1431588910554812540)
 
-# 1. 啟動時自動檢查 Render 環境變數並建立 cookies.txt，避免每次都手動上傳檔案
-cookies_content = os.environ.get("YT_COOKIES")
-if cookies_content:
-    with open("cookies.txt", "w", encoding="utf-8") as f:
-        f.write(cookies_content)
-
-# 2. yt-dlp 的標準設定選項
 ytdl_format_options = {
     'format': 'bestaudio/best',
-    'extractaudio': True,
-    'audioformat': 'mp3',
-    'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
-    'restrictfilenames': True,
     'noplaylist': True,
-    'nocheckcertificate': True,
-    'ignoreerrors': False,
-    'logtostderr': False,
-    'quiet': False,
-    'no_warnings': False,
+    'quiet': True,
     'default_search': 'auto',
-    'source_address': '0.0.0.0',
-    # 綁定自動產生的 cookies.txt 來通過 YouTube 的登入與機器人驗證
     'cookiefile': 'cookies.txt',
+    'remote_components': 'ejs:github',
+    'js_runtimes': {
+        'deno': {
+            'path': '/root/.deno/bin/deno'
+        }
+    },
 }
-
-ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
 ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
 
 
@@ -73,14 +60,14 @@ def save_playlists(data):
 def play_next(ctx):
     guild_id = ctx.guild.id
     mode = loop_status.get(guild_id, 0)
-    
+
     if guild_id in vote_skips:
         vote_skips[guild_id].clear()
-    
+
     if mode == 1 and guild_id in last_played_url:
         asyncio.run_coroutine_threadsafe(play_song(ctx, last_played_url[guild_id]), bot.loop)
         return
-        
+
     if guild_id in music_queues and len(music_queues[guild_id]) > 0:
         next_url = music_queues[guild_id].pop(0)
         if mode == 2 and guild_id in last_played_url:
@@ -109,12 +96,12 @@ class YTDLSource(discord.PCMVolumeTransformer):
         loop = loop or asyncio.get_event_loop()
         data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=False))
         if 'entries' in data: data = data['entries'][0]
-        
+
         filename = data['url']
-        
+
         # 【確保這裡有啟用 -ss 快速跳轉】
         before_options = f"-ss {start_time}" if start_time > 0 else ""
-        
+
         options_list = ['-vn']
         if filter_type == 'bassboost':
             options_list.append('-af bass=g=15')
@@ -122,7 +109,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
             options_list.append('-af asetrate=44105*1.25,aresample=44105')
         elif filter_type == 'eq_boost':
             options_list.append('-af equalizer=f=1000:width_type=o:width=2:g=5')
-            
+
         options_str = ' '.join(options_list)
 
         # 帶入 before_options 才能真正跳到該秒數
@@ -135,13 +122,13 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
             last_played_url[guild_id] = url
             if guild_id in vote_skips:
                 vote_skips[guild_id].clear()
-        
+
         vol = current_volumes.get(guild_id, 0.5)
         flt = current_filters.get(guild_id, None)
-        
+
         # 建立音訊來源 (帶入 start_time 秒數)
         player = await YTDLSource.create_source(url, loop=bot.loop, start_time=start_time, volume=vol, filter_type=flt)
-        
+
         def after_playing(error):
             # 如果是章節切換中斷，不觸發播下一首或退房
             if is_chapter_seek:
@@ -156,11 +143,11 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
                 vc.stop()
             vc.play(player, after=after_playing)
             start_times[guild_id] = time.time() - start_time  # 修正計時器的起始時間
-        
+
         # 【關鍵】只有在「非章節切換（也就是一般點歌）」時，才發送全新的控制面板 Embed
         if not is_chapter_seek:
             view = MusicControlView(chapters=player.chapters, url=url)
-            
+
             embed = discord.Embed(
                 title="🎶 正在播放音樂",
                 description=f"**[{player.title}]({url})**",
@@ -175,6 +162,8 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
 
             if hasattr(ctx, 'followup'): await ctx.followup.send(embed=embed, view=view)
             else: await ctx.channel.send(embed=embed, view=view)
+            if hasattr(ctx, 'followup'): await ctx.followup.send(embed=embed, view=view)
+            else: await ctx.channel.send(embed=embed, view=view)
     except Exception as e:
         print(f"播放錯誤: {e}")
 # --- 互動式進階面板與選單元件 ---
@@ -182,21 +171,21 @@ class ChapterSelect(discord.ui.Select):
     def __init__(self, chapters, url):
         options = [discord.SelectOption(label=c.get('title', f'章節 {i+1}')[:100], value=f"{url}|{c.get('start_time', 0)}") for i, c in enumerate(chapters[:25])]
         super().__init__(placeholder="🎵 即時切換章節...", options=options, row=0)
-        
+
     async def callback(self, interaction: discord.Interaction):
         data = self.values[0].split("|")
         target_url = data[0]
         start_sec = float(data[1])
-        
+
         await interaction.response.send_message(f"⏩ 正在背景切換至章節秒數: {int(start_sec)}秒...", ephemeral=True)
-        
+
         # 使用背景任務 (Task) 獨立處理串流初始化與切換，完全不卡住目前的互動與音訊
         async def perform_seek():
             try:
                 await play_song(interaction, target_url, start_time=start_sec, is_chapter_seek=True)
             except Exception as e:
                 print(f"章節背景切換錯誤: {e}")
-                
+
         asyncio.create_task(perform_seek())
 class FilterSelect(discord.ui.Select):
     def __init__(self):
@@ -290,10 +279,10 @@ class MusicControlView(discord.ui.View):
         playlists = load_playlists()
         user_id = str(i.user.id)
         default_name = "我的最愛"
-        
+
         if user_id not in playlists: playlists[user_id] = {}
         if default_name not in playlists[user_id]: playlists[user_id][default_name] = []
-        
+
         if self.url not in playlists[user_id][default_name]:
             playlists[user_id][default_name].append(self.url)
             save_playlists(playlists)
@@ -307,11 +296,11 @@ class MusicControlView(discord.ui.View):
         if not vc or not vc.is_playing():
             await i.response.send_message("目前沒有音樂正在播放！", ephemeral=True)
             return
-            
+
         start = start_times.get(i.guild.id, time.time())
         elapsed = int(time.time() - start)
         dur = vc.source.data.get('duration', 0)
-        
+
         if not dur or dur <= 0:
             await i.response.send_message(f"⏱️ 目前已播放: {elapsed//60}:{elapsed%60:02} (直播或未知長度)", ephemeral=True)
             return
@@ -360,11 +349,11 @@ async def slash_np(interaction: discord.Interaction):
     if not vc or not vc.is_playing():
         await interaction.response.send_message("目前沒有音樂正在播放！", ephemeral=True)
         return
-        
+
     start = start_times.get(interaction.guild.id, time.time())
     elapsed = int(time.time() - start)
     dur = vc.source.data.get('duration', 0)
-    
+
     if not dur or dur <= 0:
         await interaction.response.send_message(f"🎵 **{vc.source.title}**\n⏱️ 已播放時間: {elapsed//60}:{elapsed%60:02} (未知長度/直播)")
         return
@@ -372,7 +361,7 @@ async def slash_np(interaction: discord.Interaction):
     progress = min(elapsed, dur)
     filled = int(20 * progress / dur)
     bar = "▬" * filled + "●" * (1 if filled < 20 else 0) + "▬" * (19 - filled if filled < 20 else 0)
-    
+
     await interaction.response.send_message(f"🎵 **{vc.source.title}**\n`[{bar}]` {elapsed//60}:{elapsed%60:02} / {dur//60}:{dur%60:02}")
 
 @bot.tree.command(name="recommend", description="根據當前歌曲推薦相似音樂")
@@ -381,11 +370,11 @@ async def slash_rec(interaction: discord.Interaction):
     if not last_url:
         await interaction.response.send_message("請先播放一首歌，我才能為你推薦！", ephemeral=True)
         return
-    
+
     await interaction.response.defer()
     info = ytdl.extract_info(last_url, download=False)
     related = info.get('related_videos', [])[:5]
-    
+
     if not related:
         await interaction.followup.send("找不到相關推薦歌曲。")
         return
@@ -393,7 +382,7 @@ async def slash_rec(interaction: discord.Interaction):
     rec_msg = "💡 **為您推薦以下歌曲：**\n"
     for r in related:
         rec_msg += f"- [{r.get('title')}]({r.get('url')})\n"
-    
+
     await interaction.followup.send(rec_msg)
 
 @bot.tree.command(name="download", description="取得當前播放歌曲的直接音訊下載網址")
@@ -402,14 +391,14 @@ async def slash_download(interaction: discord.Interaction):
     if not vc or not vc.is_playing():
         await interaction.response.send_message("目前沒有音樂正在播放！", ephemeral=True)
         return
-        
+
     song_url = last_played_url.get(interaction.guild.id)
     song_title = vc.source.title
-    
+
     if not song_url:
         await interaction.response.send_message("無法取得當前歌曲網址。", ephemeral=True)
         return
-        
+
     await interaction.response.defer(ephemeral=True)
     try:
         info = ytdl.extract_info(song_url, download=False)
@@ -424,15 +413,15 @@ async def slash_trending(interaction: discord.Interaction):
     try:
         info = ytdl.extract_info("ytsearch5:热门音乐 流行歌曲", download=False)
         entries = info.get('entries', [])
-        
+
         if not entries:
             await interaction.followup.send("目前無法取得熱門音樂清單。")
             return
-            
+
         msg = "🔥 **當前熱門精選排行榜：**\n"
         for idx, entry in enumerate(entries, 1):
             msg += f"{idx}. [{entry.get('title')}]({entry.get('url')})\n"
-            
+
         await interaction.followup.send(msg)
     except Exception:
         await interaction.followup.send("取得熱門排行榜失敗。")
@@ -443,26 +432,26 @@ async def slash_voteskip(interaction: discord.Interaction):
     if not vc or not vc.is_playing():
         await interaction.response.send_message("目前沒有音樂正在播放！", ephemeral=True)
         return
-        
+
     guild_id = interaction.guild.id
     if guild_id not in vote_skips:
         vote_skips[guild_id] = set()
-        
+
     user_id = interaction.user.id
     if not interaction.user.voice or interaction.user.voice.channel != vc.channel:
         await interaction.response.send_message("你必須和機器人在同一個語音頻道才能投票！", ephemeral=True)
         return
-        
+
     if user_id in vote_skips[guild_id]:
         await interaction.response.send_message("你已經投過票了！", ephemeral=True)
         return
-        
+
     vote_skips[guild_id].add(user_id)
-    
+
     channel_members = [m for m in vc.channel.members if not m.bot]
     required_votes = max(1, len(channel_members) // 2)
     current_votes = len(vote_skips[guild_id])
-    
+
     if current_votes >= required_votes:
         vc.stop()
         await interaction.response.send_message(f"🗳️ 投票跳過成功！ ({current_votes}/{required_votes} 票)")
@@ -476,7 +465,7 @@ async def slash_shuffle(interaction: discord.Interaction):
     if not q or len(q) < 2:
         await interaction.response.send_message("目前的佇列歌曲太少，無法進行洗牌！", ephemeral=True)
         return
-        
+
     random.shuffle(music_queues[guild_id])
     await interaction.response.send_message("🔀 已成功將目前的音樂佇列隨機洗牌！", ephemeral=True)
 
@@ -495,7 +484,7 @@ async def slash_history(interaction: discord.Interaction):
     if not hist:
         await interaction.response.send_message("目前沒有歷史播放記錄！", ephemeral=True)
         return
-        
+
     msg = "📜 **最近播放歷史記錄 (最近 10 首)：**\n"
     for idx, song_url in enumerate(hist[-10:][::-1], 1):
         msg += f"{idx}. {song_url}\n"
@@ -507,10 +496,10 @@ async def slash_lyrics(interaction: discord.Interaction):
     if not vc or not vc.is_playing():
         await interaction.response.send_message("目前沒有音樂正在播放，無法查詢歌詞！", ephemeral=True)
         return
-        
+
     song_title = vc.source.title
     await interaction.response.defer()
-    
+
     try:
         await interaction.followup.send(f"🎤 正在為您尋找 **{song_title}** 的歌詞建議...\n(提示：您也可以直接至 Google 搜尋該歌名搭配「歌詞」以獲得最完整的圖文排版)")
     except Exception:
@@ -523,7 +512,7 @@ async def slash_queue(interaction: discord.Interaction):
     if not q:
         await interaction.response.send_message("目前佇列是空的！", ephemeral=True)
         return
-    
+
     msg = "🎶 **目前音樂佇列：**\n"
     for idx, song_url in enumerate(q[:10], 1):
         msg += f"{idx}. {song_url}\n"
@@ -558,10 +547,10 @@ async def slash_loop(interaction: discord.Interaction, mode: int):
 async def slash_playlist_add(interaction: discord.Interaction, name: str, url: str):
     playlists = load_playlists()
     user_id = str(interaction.user.id)
-    
+
     if user_id not in playlists: playlists[user_id] = {}
     if name not in playlists[user_id]: playlists[user_id][name] = []
-    
+
     playlists[user_id][name].append(url)
     save_playlists(playlists)
     await interaction.response.send_message(f"✅ 已成功將歌曲加入歌單 **{name}**！", ephemeral=True)
@@ -570,11 +559,11 @@ async def slash_playlist_add(interaction: discord.Interaction, name: str, url: s
 async def slash_playlist_list(interaction: discord.Interaction):
     playlists = load_playlists()
     user_id = str(interaction.user.id)
-    
+
     if user_id not in playlists or not playlists[user_id]:
         await interaction.response.send_message("你目前沒有建立任何自訂歌單！", ephemeral=True)
         return
-        
+
     msg = "📂 **你的自訂歌單列表：**\n"
     for name, songs in playlists[user_id].items():
         msg += f"- **{name}**（共 {len(songs)} 首歌曲）\n"
@@ -585,7 +574,7 @@ async def slash_playlist_list(interaction: discord.Interaction):
 async def slash_playlist_delete(interaction: discord.Interaction, name: str):
     playlists = load_playlists()
     user_id = str(interaction.user.id)
-    
+
     if user_id in playlists and name in playlists[user_id]:
         del playlists[user_id][name]
         save_playlists(playlists)
@@ -598,7 +587,7 @@ async def slash_playlist_delete(interaction: discord.Interaction, name: str):
 async def slash_playlist_export(interaction: discord.Interaction, name: str):
     playlists = load_playlists()
     user_id = str(interaction.user.id)
-    
+
     if user_id in playlists and name in playlists[user_id]:
         songs = playlists[user_id][name]
         export_data = json.dumps(songs, ensure_ascii=False)
@@ -613,14 +602,14 @@ async def slash_playlist_import(interaction: discord.Interaction, name: str, cod
         songs = json.loads(code)
         if not isinstance(songs, list):
             raise ValueError()
-            
+
         playlists = load_playlists()
         user_id = str(interaction.user.id)
-        
+
         if user_id not in playlists: playlists[user_id] = {}
         playlists[user_id][name] = songs
         save_playlists(playlists)
-        
+
         await interaction.response.send_message(f"📥 成功匯入新歌單 **{name}**（共 {len(songs)} 首歌曲）！", ephemeral=True)
     except Exception:
         await interaction.response.send_message("❌ 匯入失敗！請確認代碼格式是否正確。", ephemeral=True)
@@ -633,26 +622,26 @@ async def slash_playlist_play(interaction: discord.Interaction, name: str):
 
     playlists = load_playlists()
     user_id = str(interaction.user.id)
-    
+
     if user_id not in playlists or name not in playlists[user_id] or not playlists[user_id][name]:
         await interaction.followup.send(f"找不到歌單 **{name}** 或歌單內沒有歌曲！", ephemeral=True)
         return
-        
+
     if not interaction.guild.voice_client:
         if interaction.user.voice:
             await interaction.user.voice.channel.connect()
         else:
             await interaction.followup.send("請先進入語音頻道！", ephemeral=True)
             return
-            
+
     guild_id = interaction.guild.id
     songs = playlists[user_id][name]
-    
+
     first_song = songs[0]
     if guild_id not in music_queues: music_queues[guild_id] = []
     for s in songs[1:]:
         music_queues[guild_id].append(s)
-        
+
     await play_song(interaction, first_song)
     await interaction.followup.send(f"🎶 開始播放歌單: **{name}**（共 {len(songs)} 首）")
 
