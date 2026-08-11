@@ -170,6 +170,7 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
 # --- 互動式進階面板與選單元件 ---
 class ChapterSelect(discord.ui.Select):
     def __init__(self, chapters, url):
+        # 確保這裡抓取的是 c.get('start_time', 0) 或 c.get('time', 0)
         options = [discord.SelectOption(label=c.get('title', f'章節 {i+1}')[:100], value=f"{url}|{c.get('start_time', 0)}") for i, c in enumerate(chapters[:25])]
         super().__init__(placeholder="🎵 即時切換章節...", options=options, row=0)
 
