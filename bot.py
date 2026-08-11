@@ -57,6 +57,29 @@ def load_playlists():
 def save_playlists(data):
     with open(PLAYLIST_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
+def play_next(ctx):
+    guild_id = ctx.guild.id
+    mode = loop_status.get(guild_id, 0)
+    
+    if guild_id in vote_skips:
+        vote_skips[guild_id].clear()
+    
+    if mode == 1 and guild_id in last_played_url:
+        asyncio.run_coroutine_threadsafe(play_song(ctx, last_played_url[guild_id]), bot.loop)
+        return
+        
+    if guild_id in music_queues and len(music_queues[guild_id]) > 0:
+        next_url = music_queues[guild_id].pop(0)
+        if mode == 2 and guild_id in last_played_url:
+            music_queues[guild_id].append(last_played_url[guild_id])
+        asyncio.run_coroutine_threadsafe(play_song(ctx, next_url), bot.loop)
+    elif mode == 2 and guild_id in last_played_url:
+        asyncio.run_coroutine_threadsafe(play_song(ctx, last_played_url[guild_id]), bot.loop)
+    else:
+        if not is_247_mode.get(guild_id, False):
+            vc = ctx.guild.voice_client if not isinstance(ctx, discord.Interaction) else ctx.guild.voice_client
+            if vc and vc.is_connected():
+                asyncio.run_coroutine_threadsafe(vc.disconnect(), bot.loop)
 
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5, filter_type=None):
