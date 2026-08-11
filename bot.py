@@ -131,7 +131,7 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
         player = await YTDLSource.create_source(url, loop=bot.loop, start_time=start_time, volume=vol, filter_type=flt)
 
         def after_playing(error):
-            # 如果是章節切換中斷，不觸發播下一首或退房
+            # 如果是章節切換中斷，絕對直接返回，不切歌也不退房
             if is_chapter_seek:
                 return
             if guild_id not in music_history: music_history[guild_id] = []
@@ -141,11 +141,13 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
         vc = ctx.guild.voice_client if isinstance(ctx, discord.Interaction) else ctx.guild.voice_client
         if vc:
             if vc.is_playing() or vc.is_paused(): 
+                # 停止前先清空 source 的 after，避免 stop() 觸發錯誤事件
+                vc.source = None 
                 vc.stop()
             vc.play(player, after=after_playing)
             start_times[guild_id] = time.time() - start_time  # 修正計時器的起始時間
 
-        # 【關鍵】只有在「非章節切換（也就是一般點歌）」時，才發送全新的控制面板 Embed
+        # 只有在「非章節切換（一般點歌）」時才發送全新的控制面板
         if not is_chapter_seek:
             view = MusicControlView(chapters=player.chapters, url=url)
 
@@ -161,8 +163,6 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
                 embed.set_thumbnail(url=player.thumbnail)
             embed.set_footer(text="使用下方按鈕與選單隨時控制播放狀態")
 
-            if hasattr(ctx, 'followup'): await ctx.followup.send(embed=embed, view=view)
-            else: await ctx.channel.send(embed=embed, view=view)
             if hasattr(ctx, 'followup'): await ctx.followup.send(embed=embed, view=view)
             else: await ctx.channel.send(embed=embed, view=view)
     except Exception as e:
