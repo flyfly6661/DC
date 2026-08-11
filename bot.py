@@ -144,7 +144,6 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
 # --- 互動式進階面板與選單元件 ---
 class ChapterSelect(discord.ui.Select):
     def __init__(self, chapters, url):
-        # 這裡直接把原本的 url 和對應的秒數傳過去
         options = [discord.SelectOption(label=c.get('title', f'章節 {i+1}')[:100], value=f"{url}|{c.get('start_time', 0)}") for i, c in enumerate(chapters[:25])]
         super().__init__(placeholder="🎵 即時切換章節...", options=options, row=0)
         
@@ -153,10 +152,16 @@ class ChapterSelect(discord.ui.Select):
         target_url = data[0]
         start_sec = float(data[1])
         
-        await interaction.response.send_message(f"⏩ 正在跳轉至章節秒數: {int(start_sec)}秒...", ephemeral=True)
+        await interaction.response.send_message(f"⏩ 正在背景切換至章節秒數: {int(start_sec)}秒...", ephemeral=True)
         
-        # 呼叫 play_song，帶入 start_time，並設定 is_chapter_seek=True 讓它不重複跳出新面板
-        await play_song(interaction, target_url, start_time=start_sec, is_chapter_seek=True)
+        # 使用背景任務 (Task) 獨立處理串流初始化與切換，完全不卡住目前的互動與音訊
+        async def perform_seek():
+            try:
+                await play_song(interaction, target_url, start_time=start_sec, is_chapter_seek=True)
+            except Exception as e:
+                print(f"章節背景切換錯誤: {e}")
+                
+        asyncio.create_task(perform_seek())
 class FilterSelect(discord.ui.Select):
     def __init__(self):
         options = [
