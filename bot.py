@@ -92,8 +92,6 @@ class YTDLSource(discord.PCMVolumeTransformer):
 async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
     try:
         guild_id = ctx.guild.id
-        print(f"[DEBUG] play_song 被呼叫，guild_id: {guild_id}, url: {url}, start_time: {start_time}")
-        
         if not is_chapter_seek: 
             last_played_url[guild_id] = url
             if guild_id in vote_skips:
@@ -102,13 +100,11 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
         vol = current_volumes.get(guild_id, 0.5)
         flt = current_filters.get(guild_id, None)
         
-        print(f"[DEBUG] 正在提取影音資訊 (extract_info)...")
+        # 建立音訊來源 (帶入 start_time 秒數)
         player = await YTDLSource.create_source(url, loop=bot.loop, start_time=start_time, volume=vol, filter_type=flt)
-        print(f"[DEBUG] 影音資訊提取成功，標題: {player.title}")
         
         def after_playing(error):
-            if error:
-                print(f"[ERROR] 播放過程發生錯誤: {error}")
+            # 如果是章節切換中斷，不觸發播下一首或退房
             if is_chapter_seek:
                 return
             if guild_id not in music_history: music_history[guild_id] = []
@@ -118,15 +114,11 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
         vc = ctx.guild.voice_client if isinstance(ctx, discord.Interaction) else ctx.guild.voice_client
         if vc:
             if vc.is_playing() or vc.is_paused(): 
-                print(f"[DEBUG] 停止目前正在播放的音訊...")
                 vc.stop()
-            print(f"[DEBUG] 開始播放新音訊源...")
             vc.play(player, after=after_playing)
-            start_times[guild_id] = time.time()
-            print(f"[DEBUG] 新音訊源播放成功！")
-        else:
-            print(f"[WARNING] 找不到語音客戶端 (voice_client)")
+            start_times[guild_id] = time.time() - start_time  # 修正計時器的起始時間
         
+        # 【關鍵】只有在「非章節切換（也就是一般點歌）」時，才發送全新的控制面板 Embed
         if not is_chapter_seek:
             view = MusicControlView(chapters=player.chapters, url=url)
             
@@ -145,9 +137,7 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
             if hasattr(ctx, 'followup'): await ctx.followup.send(embed=embed, view=view)
             else: await ctx.channel.send(embed=embed, view=view)
     except Exception as e:
-        print(f"[ERROR] play_song 發生嚴重例外錯誤: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"播放錯誤: {e}")
 # --- 互動式進階面板與選單元件 ---
 class ChapterSelect(discord.ui.Select):
     def __init__(self, chapters, url):
