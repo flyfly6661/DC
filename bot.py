@@ -18,6 +18,13 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 # 你的伺服器 ID
 MY_GUILD_ID = discord.Object(id=1431588910554812540)
 
+# 1. 啟動時自動檢查 Render 環境變數並建立 cookies.txt，避免每次都手動上傳檔案
+cookies_content = os.environ.get("YT_COOKIES")
+if cookies_content:
+    with open("cookies.txt", "w", encoding="utf-8") as f:
+        f.write(cookies_content)
+
+# 2. yt-dlp 的標準設定選項
 ytdl_format_options = {
     'format': 'bestaudio/best',
     'extractaudio': True,
@@ -32,10 +39,11 @@ ytdl_format_options = {
     'no_warnings': False,
     'default_search': 'auto',
     'source_address': '0.0.0.0',
-    # 【關鍵設定】強制要求使用 OAuth2 登入
-    'username': 'oauth2',
-    'password': '',
+    # 綁定自動產生的 cookies.txt 來通過 YouTube 的登入與機器人驗證
+    'cookiefile': 'cookies.txt',
 }
+
+ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
 ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
 
 
