@@ -20,16 +20,9 @@ MY_GUILD_ID = discord.Object(id=1431588910554812540)
 
 ytdl_format_options = {
     'format': 'bestaudio/best',
-    'noplaylist': True,
-    'quiet': True,
-    'default_search': 'auto',
-    'cookiefile': 'cookies.txt',
-    'remote_components': 'ejs:github',
-    'js_runtimes': {
-        'deno': {
-            'path': '/root/.deno/bin/deno'
-        }
-    },
+    'username': 'oauth2',
+    'password': '',
+    # 移除原本的 'cookiefile'
 }
 ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
 
