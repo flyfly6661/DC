@@ -113,7 +113,12 @@ class YTDLSource(discord.PCMVolumeTransformer):
         options_str = ' '.join(options_list)
 
         # 帶入 before_options 才能真正跳到該秒數
-        audio = discord.FFmpegPCMAudio(filename, before_options=before_options, options=options_str)
+       # 帶入更穩定、抗網路波動的 FFmpeg 參數
+        audio = discord.FFmpegPCMAudio(
+            filename, 
+            before_options=before_options + " -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5", 
+            options=options_str
+        )
         return cls(audio, data=data, volume=volume, filter_type=filter_type)
 async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
     try:
