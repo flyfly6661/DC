@@ -1,5 +1,2 @@
 discord.py
-yt-dlp[default]
-flask
-PyNaCl
-davey
+wavelink
