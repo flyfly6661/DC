@@ -68,13 +68,16 @@ class YTDLSource(discord.PCMVolumeTransformer):
         self.thumbnail = data.get('thumbnail')
         self.duration = data.get('duration', 0)
 
-    @classmethod
+@classmethod
     async def create_source(cls, url, *, loop=None, start_time=0, volume=0.5, filter_type=None):
         loop = loop or asyncio.get_event_loop()
         data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=False))
         if 'entries' in data: data = data['entries'][0]
         
         filename = data['url']
+        
+        # 【確保這裡有啟用 -ss 快速跳轉】
+        before_options = f"-ss {start_time}" if start_time > 0 else ""
         
         options_list = ['-vn']
         if filter_type == 'bassboost':
@@ -86,8 +89,8 @@ class YTDLSource(discord.PCMVolumeTransformer):
             
         options_str = ' '.join(options_list)
 
-        # 這裡不需要複雜的 before_options，直接用標準參數播放 yt-dlp 解析好的時間點
-        audio = discord.FFmpegPCMAudio(filename, options=options_str)
+        # 帶入 before_options 才能真正跳到該秒數
+        audio = discord.FFmpegPCMAudio(filename, before_options=before_options, options=options_str)
         return cls(audio, data=data, volume=volume, filter_type=filter_type)
 async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
     try:
