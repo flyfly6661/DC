@@ -165,8 +165,8 @@ async def play_song(ctx, url, start_time=0, is_chapter_seek=False):
                 embed.set_thumbnail(url=player.thumbnail)
             embed.set_footer(text="使用下方按鈕與選單隨時控制播放狀態")
 
-            if hasattr(ctx, 'followup'): await ctx.followup.send(embed=embed, view=view,ephemeral=True)
-            else: await ctx.channel.send(embed=embed, view=view,ephemeral=True)
+            if hasattr(ctx, 'followup'): await ctx.followup.send(embed=embed, view=view)
+            else: await ctx.channel.send(embed=embed, view=view)
     except Exception as e:
         print(f"播放錯誤: {e}")
 # --- 互動式進階面板與選單元件 ---
